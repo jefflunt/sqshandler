@@ -2,7 +2,7 @@
 
 `sqshandler` is a lightweight daemon written in Go that monitors an Amazon SQS queue, parses incoming messages natively, executes shell commands based on the message command (`cmd`), and deletes processed messages from the queue.
 
-It is designed for security and speed, running message processing asynchronously in parallel goroutines.
+It is designed for simplicity and speed, running message processing asynchronously in parallel goroutines.
 
 ---
 
@@ -16,9 +16,7 @@ sqs:
   queue_url: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue"
   max_number_of_messages: 10   # optional (default: 10)
   wait_time_seconds: 20        # optional (default: 20)
-  
-  # Optional: Embed static AWS credentials directly
-  # If omitted, sqshandler falls back to standard AWS configuration chains (~/.aws/credentials, environment variables, etc.)
+  # Required AWS credentials
   aws_access_key_id: "AKIA..."
   aws_secret_access_key: "wJalr..."
 

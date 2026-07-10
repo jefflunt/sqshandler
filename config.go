@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -57,5 +58,14 @@ func LoadConfigFromFile(path string) (*Config, error) {
 	if cfg.SQS.WaitTimeSeconds == 0 {
 		cfg.SQS.WaitTimeSeconds = 20
 	}
+
+	// Validate required AWS credentials
+	if cfg.SQS.AWSAccessKeyID == "" {
+		return nil, fmt.Errorf("aws_access_key_id is required in SQS configuration")
+	}
+	if cfg.SQS.AWSSecretAccessKey == "" {
+		return nil, fmt.Errorf("aws_secret_access_key is required in SQS configuration")
+	}
+
 	return &cfg, nil
 }

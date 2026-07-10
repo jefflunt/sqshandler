@@ -17,6 +17,8 @@ sqs:
   queue_url: "https://sqs.us-west-2.amazonaws.com/12345/my-queue"
   max_number_of_messages: 5
   wait_time_seconds: 15
+  aws_access_key_id: "test-key"
+  aws_secret_access_key: "test-secret"
 
 cmd:
   BUILD:
@@ -65,6 +67,8 @@ func TestLoadConfigDefaults(t *testing.T) {
 sqs:
   region: "us-east-1"
   queue_url: "https://sqs.us-east-1.amazonaws.com/12345/my-queue"
+  aws_access_key_id: "test-key"
+  aws_secret_access_key: "test-secret"
 `
 	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("failed to write temp config file: %v", err)
@@ -81,5 +85,24 @@ sqs:
 	}
 	if cfg.SQS.WaitTimeSeconds != 20 {
 		t.Errorf("expected default WaitTimeSeconds 20, got %d", cfg.SQS.WaitTimeSeconds)
+	}
+}
+
+func TestLoadConfigMissingCredentials(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.yml")
+
+	yamlContent := `
+sqs:
+  region: "us-east-1"
+  queue_url: "https://sqs.us-east-1.amazonaws.com/12345/my-queue"
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write temp config file: %v", err)
+	}
+
+	_, err := LoadConfigFromFile(configPath)
+	if err == nil {
+		t.Error("expected LoadConfigFromFile to fail when credentials are missing")
 	}
 }

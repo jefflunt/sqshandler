@@ -12,12 +12,12 @@ import (
 )
 
 func main() {
-	LogUTC("Initializing sqshandler...")
+	LogUTC("INIT Initializing sqshandler...")
 
 	// Load configuration
 	cfg, err := LoadConfig()
 	if err != nil {
-		LogUTC("Failed to load configuration: %v", err)
+		LogUTC("ERRO Failed to load configuration: %v", err)
 		os.Exit(1)
 	}
 
@@ -33,7 +33,7 @@ func main() {
 
 	awsCfg, err := awsConfig.LoadDefaultConfig(context.Background(), optFns...)
 	if err != nil {
-		LogUTC("Failed to load AWS SDK config: %v", err)
+		LogUTC("ERRO Failed to load AWS SDK config: %v", err)
 		os.Exit(1)
 	}
 
@@ -51,11 +51,11 @@ func main() {
 
 	go func() {
 		sig := <-sigChan
-		LogUTC("Received shutdown signal: %v. Initiating graceful shutdown...", sig)
+		LogUTC("STOP Received shutdown signal: %v. Initiating graceful shutdown...", sig)
 		cancel()
 	}()
 
 	// Start processor
 	processor.Start(ctx)
-	LogUTC("sqshandler daemon exited.")
+	LogUTC("STOP sqshandler daemon exited.")
 }

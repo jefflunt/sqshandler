@@ -41,12 +41,12 @@ func NewProcessor(cfg *Config, sqsClient SQSAPI) *Processor {
 
 // Start begins polling the SQS queue until the context is canceled.
 func (p *Processor) Start(ctx context.Context) {
-	LogUTC("Starting SQS listener for queue: %s", p.cfg.SQS.QueueURL)
+	LogUTC("INIT Starting SQS listener for queue: %s", p.cfg.SQS.QueueURL)
 
 	for {
 		select {
 		case <-ctx.Done():
-			LogUTC("Polling loop stopped. Waiting for active workers to complete...")
+			LogUTC("STOP Polling loop stopped. Waiting for active workers to complete...")
 			p.wg.Wait()
 			return
 		default:
@@ -62,7 +62,7 @@ func (p *Processor) Start(ctx context.Context) {
 				if errors.Is(err, context.Canceled) {
 					continue
 				}
-				LogUTC("Error receiving SQS messages: %v", err)
+				LogUTC("SQSE Error receiving SQS messages: %v", err)
 				continue
 			}
 
@@ -89,14 +89,14 @@ func (p *Processor) processMessage(ctx context.Context, msg types.Message) {
 	// Step 1: Validate payload using native JSON unmarshalling
 	var payload MessagePayload
 	if err := json.Unmarshal([]byte(body), &payload); err != nil {
-		LogUTC("Message [%s] failed native JSON unmarshalling: %v. Body: %s", msgID, err, body)
+		LogUTC("JSON unmarshalling: %v", err)
 		p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
 		return
 	}
 
 	// Validate required fields
 	if payload.Cmd == "" || payload.Value == "" {
-		LogUTC("Message [%s] validation failed: 'cmd' and 'value' must be non-empty. Body: %s", msgID, body)
+		LogUTC("JSON 'cmd' and 'value' must be non-empty. Body: %s", body)
 		p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
 		return
 	}
@@ -104,17 +104,17 @@ func (p *Processor) processMessage(ctx context.Context, msg types.Message) {
 	// Step 2: Look up command mapping
 	cmdConfig, exists := p.cfg.Cmd[payload.Cmd]
 	if !exists {
-		LogUTC("Message [%s] cmd '%s' has no configured mapping. Message discarded.", msgID, payload.Cmd)
+		LogUTC("NMAP [%s] has no configured mapping", payload.Cmd)
 		p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
 		return
 	}
 
 	// Step 3: Log command invocation and execute
-	LogUTC("Command [%s] invoked: path=%s args=%v", payload.Cmd, cmdConfig.Path, cmdConfig.Args)
+	LogUTC("SUCC [%s] invoked", payload.Cmd)
 	
 	exitStatus := p.runCommand(cmdConfig.Path, cmdConfig.Args)
 	
-	LogUTC("Command [%s] closed: exit status=%d", payload.Cmd, exitStatus)
+	LogUTC("CLSD [%s] closed: exit status=%d", payload.Cmd, exitStatus)
 
 	// Step 4: Delete message from SQS
 	p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
@@ -133,7 +133,7 @@ func (p *Processor) runCommand(path string, args []string) int {
 			return exitErr.ExitCode()
 		}
 		// If command couldn't be started or failed for other reasons (e.g. file not found)
-		LogUTC("Failed to run command: %v", err)
+		LogUTC("ERRO Failed to run command: %v", err)
 		return -1
 	}
 
@@ -146,8 +146,8 @@ func (p *Processor) deleteMessage(ctx context.Context, msgID string, receiptHand
 		ReceiptHandle: receiptHandle,
 	})
 	if err != nil {
-		LogUTC("Failed to delete message [%s] from SQS: %v", msgID, err)
+		LogUTC("DELF [%s] delete failed: %v", msgID, err)
 		return
 	}
-	LogUTC("Successfully deleted message [%s] from SQS.", msgID)
+	LogUTC("DELM [%s] deleted from SQS", msgID)
 }

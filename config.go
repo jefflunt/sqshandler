@@ -26,8 +26,9 @@ type CommandConfig struct {
 
 // Config is the top-level structure of the ~/.sqshandler/config.yml file.
 type Config struct {
-	SQS SQSConfig                `yaml:"sqs"`
-	Cmd map[string]CommandConfig `yaml:"cmd"`
+	SQS     SQSConfig                `yaml:"sqs"`
+	Cmd     map[string]CommandConfig `yaml:"cmd"`
+	Extract []string                 `yaml:"extract"`
 }
 
 // LoadConfig loads the configuration from ~/.sqshandler/config.yml.
@@ -65,6 +66,16 @@ func LoadConfigFromFile(path string) (*Config, error) {
 	}
 	if cfg.SQS.AWSSecretAccessKey == "" {
 		return nil, fmt.Errorf("aws_secret_access_key is required in SQS configuration")
+	}
+
+	// Validate required extract configuration
+	if len(cfg.Extract) == 0 {
+		return nil, fmt.Errorf("extract is required in configuration")
+	}
+	for _, key := range cfg.Extract {
+		if key == "" {
+			return nil, fmt.Errorf("extract cannot contain empty keys")
+		}
 	}
 
 	return &cfg, nil

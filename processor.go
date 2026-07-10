@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
@@ -12,12 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
-
-// MessagePayload represents the expected JSON structure of SQS messages.
-type MessagePayload struct {
-	Cmd   string `json:"cmd"`
-	Value string `json:"value"`
-}
 
 // SQSAPI defines the interface for SQS client operations to allow unit testing with mocks.
 type SQSAPI interface {
@@ -87,42 +82,86 @@ func (p *Processor) processMessage(ctx context.Context, msg types.Message) {
 	msgID := aws.ToString(msg.MessageId)
 	body := aws.ToString(msg.Body)
 
-	// Step 1: Validate payload using native JSON unmarshalling
-	var payload MessagePayload
-	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+	// Step 1: Validate payload using native JSON unmarshalling to map
+	var rawPayload map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &rawPayload); err != nil {
 		LogUTC("JSON unmarshalling: %v", err)
 		p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
 		return
 	}
 
-	// Validate required fields
-	if payload.Cmd == "" || payload.Value == "" {
-		LogUTC("JSON 'cmd' and 'value' must be non-empty. Body: %s", body)
+	// Validate and extract cmd key for routing
+	cmdVal, exists := rawPayload["cmd"]
+	if !exists {
+		LogUTC("JSON 'cmd' is missing. Body: %s", body)
+		p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
+		return
+	}
+	cmdStr, ok := cmdVal.(string)
+	if !ok || cmdStr == "" {
+		LogUTC("JSON 'cmd' must be a non-empty string. Body: %s", body)
 		p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
 		return
 	}
 
+	// Extract and validate each key configured under Config.Extract
+	extracted := make(map[string]string)
+	for _, key := range p.cfg.Extract {
+		val, exists := rawPayload[key]
+		if !exists {
+			LogUTC("JSON key '%s' is missing. Body: %s", key, body)
+			p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
+			return
+		}
+		if val == nil {
+			LogUTC("JSON key '%s' is null. Body: %s", key, body)
+			p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
+			return
+		}
+		strVal := ""
+		switch v := val.(type) {
+		case string:
+			strVal = v
+		default:
+			strVal = fmt.Sprintf("%v", v)
+		}
+		if strVal == "" {
+			LogUTC("JSON key '%s' must be non-empty. Body: %s", key, body)
+			p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
+			return
+		}
+		extracted[key] = strVal
+	}
+
 	// Step 2: Look up command mapping
-	cmdConfig, exists := p.cfg.Cmd[payload.Cmd]
+	cmdConfig, exists := p.cfg.Cmd[cmdStr]
 	if !exists {
-		LogUTC("NMAP [%s] has no configured mapping", payload.Cmd)
+		LogUTC("NMAP [%s] has no configured mapping", cmdStr)
 		p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
 		return
 	}
 
 	// Step 3: Log command invocation and execute
-	LogUTC("SUCC [%s] invoked", payload.Cmd)
+	LogUTC("SUCC [%s] invoked", cmdStr)
 
-	// Interpolate {{value}} in path and args
-	path := strings.ReplaceAll(cmdConfig.Path, "{{value}}", payload.Value)
+	// Dynamically interpolate extracted keys in path and args
+	path := cmdConfig.Path
+	for k, v := range extracted {
+		path = strings.ReplaceAll(path, "{{"+k+"}}", v)
+	}
+
 	args := make([]string, len(cmdConfig.Args))
 	for i, arg := range cmdConfig.Args {
-		args[i] = strings.ReplaceAll(arg, "{{value}}", payload.Value)
+		argVal := arg
+		for k, v := range extracted {
+			argVal = strings.ReplaceAll(argVal, "{{"+k+"}}", v)
+		}
+		args[i] = argVal
 	}
 	
 	exitStatus := p.runCommand(path, args)
 	
-	LogUTC("CLSD [%s] closed: exit status=%d", payload.Cmd, exitStatus)
+	LogUTC("CLSD [%s] closed: exit status=%d", cmdStr, exitStatus)
 
 	// Step 4: Delete message from SQS
 	p.deleteMessage(ctx, msgID, msg.ReceiptHandle)

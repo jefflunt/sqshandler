@@ -20,6 +20,11 @@ sqs:
   aws_access_key_id: "test-key"
   aws_secret_access_key: "test-secret"
 
+extract:
+  - cmd
+  - key
+  - payload
+
 cmd:
   BUILD:
     path: "/usr/bin/make"
@@ -50,6 +55,10 @@ cmd:
 		t.Errorf("expected WaitTimeSeconds to be 15, got %d", cfg.SQS.WaitTimeSeconds)
 	}
 
+	if len(cfg.Extract) != 3 || cfg.Extract[0] != "cmd" || cfg.Extract[1] != "key" || cfg.Extract[2] != "payload" {
+		t.Errorf("unexpected Extract: %v", cfg.Extract)
+	}
+
 	buildCmd, ok := cfg.Cmd["BUILD"]
 	if !ok {
 		t.Fatal("expected 'BUILD' command mapping to exist")
@@ -69,6 +78,8 @@ sqs:
   queue_url: "https://sqs.us-east-1.amazonaws.com/12345/my-queue"
   aws_access_key_id: "test-key"
   aws_secret_access_key: "test-secret"
+extract:
+  - cmd
 `
 	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("failed to write temp config file: %v", err)
@@ -96,6 +107,8 @@ func TestLoadConfigMissingCredentials(t *testing.T) {
 sqs:
   region: "us-east-1"
   queue_url: "https://sqs.us-east-1.amazonaws.com/12345/my-queue"
+extract:
+  - cmd
 `
 	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("failed to write temp config file: %v", err)
@@ -104,5 +117,50 @@ sqs:
 	_, err := LoadConfigFromFile(configPath)
 	if err == nil {
 		t.Error("expected LoadConfigFromFile to fail when credentials are missing")
+	}
+}
+
+func TestLoadConfigMissingExtract(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.yml")
+
+	yamlContent := `
+sqs:
+  region: "us-east-1"
+  queue_url: "https://sqs.us-east-1.amazonaws.com/12345/my-queue"
+  aws_access_key_id: "test-key"
+  aws_secret_access_key: "test-secret"
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write temp config file: %v", err)
+	}
+
+	_, err := LoadConfigFromFile(configPath)
+	if err == nil {
+		t.Error("expected LoadConfigFromFile to fail when extract is missing")
+	}
+}
+
+func TestLoadConfigEmptyExtractKey(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.yml")
+
+	yamlContent := `
+sqs:
+  region: "us-east-1"
+  queue_url: "https://sqs.us-east-1.amazonaws.com/12345/my-queue"
+  aws_access_key_id: "test-key"
+  aws_secret_access_key: "test-secret"
+extract:
+  - cmd
+  - ""
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write temp config file: %v", err)
+	}
+
+	_, err := LoadConfigFromFile(configPath)
+	if err == nil {
+		t.Error("expected LoadConfigFromFile to fail when extract contains an empty key")
 	}
 }

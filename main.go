@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	LogUTC("INIT Initializing sqshandler version %s...", version.Version)
+	LogUTC("INIT Initializing SQS Handler configuration...")
 
 	// Load configuration
 	cfg, err := LoadConfig()
@@ -55,6 +55,8 @@ func main() {
 		LogUTC("STOP Received shutdown signal: %v. Initiating graceful shutdown...", sig)
 		cancel()
 	}()
+
+	LogUTC("INIT Starting sqshandler version %s...", version.Version)
 
 	// Start processor
 	processor.Start(ctx)

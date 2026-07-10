@@ -38,6 +38,7 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 	configPath := filepath.Join(home, ".sqshandler", "config.yml")
+	LogUTC("INIT Using existing sqshandler configuration found at %s", configPath)
 	return LoadConfigFromFile(configPath)
 }
 

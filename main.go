@@ -9,10 +9,11 @@ import (
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/jefflunt/sqshandler/pkg/version"
 )
 
 func main() {
-	LogUTC("INIT Initializing sqshandler...")
+	LogUTC("INIT Initializing sqshandler version %s...", version.Version)
 
 	// Load configuration
 	cfg, err := LoadConfig()

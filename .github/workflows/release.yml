@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - '**'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+          - os: windows-latest
+            goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Build
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          pwd
+          ls -R
+          COMMITS=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+          VERSION="b${COMMITS}-${{ matrix.goarch }}"
+          if [ "${{ github.ref_name }}" != "main" ]; then
+            VERSION="${VERSION}-${{ github.ref_name }}"
+          fi
+          EXT=""
+          if [ "${{ matrix.goos }}" == "windows" ]; then
+            EXT=".exe"
+          fi
+          go mod download
+          go build -ldflags "-X github.com/jefflunt/sqshandler/pkg/version.Version=${VERSION}" -o sqshandler-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} .
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqshandler-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: sqshandler-${{ matrix.goos }}-${{ matrix.goarch }}*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Release
+          files: artifacts/*

@@ -24,10 +24,10 @@ sqs:
 cmd:
   DRAFT:
     path: "/bin/bash"
-    args: ["-c", "echo 'Drafting command executed'"]
+    args: ["-c", "echo 'Drafting command executed for ticket: {{value}}'"]
   RELEASE:
-    path: "/usr/bin/make"
-    args: ["release"]
+    path: "/usr/local/bin/deploy-tool"
+    args: ["--ticket", "{{value}}", "--prod"]
 ```
 
 ---
@@ -45,6 +45,12 @@ Incoming SQS messages must have the following JSON structure:
 
 * Messages that fail JSON unmarshalling or have empty required fields (`cmd`, `value`) are immediately logged as errors and deleted from the SQS queue.
 * Messages containing a `cmd` that has no configured mapping in `config.yml` are also logged and deleted.
+
+---
+
+## Command Interpolation
+
+You can interpolate the JSON payload's `value` field into your command `path` or `args` by using the `{{value}}` placeholder. The daemon will automatically replace all occurrences of `{{value}}` with the actual value from the payload before execution.
 
 ---
 

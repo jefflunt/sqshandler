@@ -83,6 +83,12 @@ func TestProcessMessage_InvalidJSON(t *testing.T) {
 func TestProcessMessage_MissingFields(t *testing.T) {
 	cfg := &Config{
 		Extract: []string{"cmd", "value"},
+		Cmd: map[string]CommandConfig{
+			"TEST": {
+				Path: "echo",
+				Args: []string{"val-{{value}}"},
+			},
+		},
 	}
 	mockClient := &mockSQSClient{}
 	p := NewProcessor(cfg, mockClient)

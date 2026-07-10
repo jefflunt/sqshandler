@@ -90,47 +90,30 @@ func (p *Processor) processMessage(ctx context.Context, msg types.Message) {
 		return
 	}
 
-	// Validate and extract cmd key for routing
-	cmdVal, exists := rawPayload["cmd"]
-	if !exists {
-		LogUTC("JSON 'cmd' is missing. Body: %s", body)
-		p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
-		return
-	}
-	cmdStr, ok := cmdVal.(string)
-	if !ok || cmdStr == "" {
-		LogUTC("JSON 'cmd' must be a non-empty string. Body: %s", body)
-		p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
-		return
+	// Extract cmd key for routing
+	cmdStr := ""
+	if cmdVal, exists := rawPayload["cmd"]; exists && cmdVal != nil {
+		if s, ok := cmdVal.(string); ok {
+			cmdStr = s
+		} else {
+			cmdStr = fmt.Sprintf("%v", cmdVal)
+		}
 	}
 
-	// Extract and validate each key configured under Config.Extract
+	// Extract each key configured under Config.Extract without failing on missing/empty values
 	extracted := make(map[string]string)
 	for _, key := range p.cfg.Extract {
 		val, exists := rawPayload[key]
-		if !exists {
-			LogUTC("JSON key '%s' is missing. Body: %s", key, body)
-			p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
-			return
+		if !exists || val == nil {
+			extracted[key] = ""
+			continue
 		}
-		if val == nil {
-			LogUTC("JSON key '%s' is null. Body: %s", key, body)
-			p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
-			return
-		}
-		strVal := ""
 		switch v := val.(type) {
 		case string:
-			strVal = v
+			extracted[key] = v
 		default:
-			strVal = fmt.Sprintf("%v", v)
+			extracted[key] = fmt.Sprintf("%v", v)
 		}
-		if strVal == "" {
-			LogUTC("JSON key '%s' must be non-empty. Body: %s", key, body)
-			p.deleteMessage(ctx, msgID, msg.ReceiptHandle)
-			return
-		}
-		extracted[key] = strVal
 	}
 
 	// Step 2: Look up command mapping

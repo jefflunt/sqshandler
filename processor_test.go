@@ -31,7 +31,7 @@ func TestProcessMessage_Valid(t *testing.T) {
 		Cmd: map[string]CommandConfig{
 			"TEST_CMD": {
 				Path: "echo",
-				Args: []string{"test-output"},
+				Args: []string{"value-is-{{value}}"},
 			},
 		},
 	}

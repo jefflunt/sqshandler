@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -111,8 +112,15 @@ func (p *Processor) processMessage(ctx context.Context, msg types.Message) {
 
 	// Step 3: Log command invocation and execute
 	LogUTC("SUCC [%s] invoked", payload.Cmd)
+
+	// Interpolate {{value}} in path and args
+	path := strings.ReplaceAll(cmdConfig.Path, "{{value}}", payload.Value)
+	args := make([]string, len(cmdConfig.Args))
+	for i, arg := range cmdConfig.Args {
+		args[i] = strings.ReplaceAll(arg, "{{value}}", payload.Value)
+	}
 	
-	exitStatus := p.runCommand(cmdConfig.Path, cmdConfig.Args)
+	exitStatus := p.runCommand(path, args)
 	
 	LogUTC("CLSD [%s] closed: exit status=%d", payload.Cmd, exitStatus)
 
